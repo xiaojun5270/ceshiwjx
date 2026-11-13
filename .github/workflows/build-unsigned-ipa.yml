@@ -1,0 +1,52 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Build unsigned app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project BulkSurvey.xcodeproj \
+            -scheme BulkSurvey \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            clean build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          app_path="build/DerivedData/Build/Products/Release-iphoneos/BulkSurvey.app"
+          test -d "$app_path"
+          mkdir -p build/package/Payload
+          ditto "$app_path" build/package/Payload/BulkSurvey.app
+          cd build/package
+          zip -qry ../BulkSurvey-unsigned.ipa Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BulkSurvey-unsigned-ipa
+          path: build/BulkSurvey-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
